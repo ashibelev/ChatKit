@@ -16,6 +16,10 @@
 
 package com.stfalcon.chatkit.commons.models;
 
+import android.support.annotation.StringDef;
+
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.Date;
 
 /**
@@ -23,31 +27,47 @@ import java.util.Date;
  */
 public interface IMessage {
 
-    /**
-     * Returns message identifier
-     *
-     * @return the message id
-     */
-    String getId();
+	String TYPE_TEXT   = "text";
+	String TYPE_TYPING = "typing";
 
-    /**
-     * Returns message text
-     *
-     * @return the message text
-     */
-    String getText();
+	@StringDef({TYPE_TEXT, TYPE_TYPING})
+	@Retention(RetentionPolicy.SOURCE)
+	@interface Type {
+	}
 
-    /**
-     * Returns message author. See the {@link IUser} for more details
-     *
-     * @return the message author
-     */
-    IUser getUser();
+	/**
+	 * Returns message identifier
+	 *
+	 * @return the message id
+	 */
+	String getId();
 
-    /**
-     * Returns message creation date
-     *
-     * @return the message creation date
-     */
-    Date getCreatedAt();
+	/**
+	 * Returns message type
+	 *
+	 * @return the message type
+	 */
+	@Type
+	String getType();
+
+	/**
+	 * Returns message text
+	 *
+	 * @return the message text
+	 */
+	String getText();
+
+	/**
+	 * Returns message author. See the {@link IUser} for more details
+	 *
+	 * @return the message author
+	 */
+	IUser getUser();
+
+	/**
+	 * Returns message creation date
+	 *
+	 * @return the message creation date
+	 */
+	Date getCreatedAt();
 }

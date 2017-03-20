@@ -37,203 +37,176 @@ import java.lang.reflect.Field;
  * Component for input outcoming messages
  */
 public class MessageInput extends RelativeLayout
-        implements View.OnClickListener, TextWatcher {
+		implements View.OnClickListener, TextWatcher {
 
-    protected EditText messageInput;
-    protected ImageButton messageSendButton;
-    protected ImageButton attachmentButton;
-    protected Space sendButtonSpace, attachmentButtonSpace;
+	protected EditText    messageInput;
+	protected ImageButton messageSendButton;
+	protected Space       buttonSpace;
 
-    private CharSequence input;
-    private InputListener inputListener;
-    private AttachmentsListener attachmentsListener;
+	private CharSequence  input;
+	private InputListener inputListener;
 
-    public MessageInput(Context context) {
-        super(context);
-        init(context);
-    }
+	private int mInputLayout;
 
-    public MessageInput(Context context, AttributeSet attrs) {
-        super(context, attrs);
-        init(context, attrs);
-    }
+	public MessageInput(Context context) {
+		super(context);
+		init(context);
+	}
 
-    public MessageInput(Context context, AttributeSet attrs, int defStyleAttr) {
-        super(context, attrs, defStyleAttr);
-        init(context, attrs);
-    }
+	public MessageInput(Context context, AttributeSet attrs) {
+		super(context, attrs);
+		init(context, attrs);
+	}
 
-    /**
-     * Sets callback for 'submit' button.
-     *
-     * @param inputListener input callback
-     */
-    public void setInputListener(InputListener inputListener) {
-        this.inputListener = inputListener;
-    }
+	public MessageInput(Context context, AttributeSet attrs, int defStyleAttr) {
+		super(context, attrs, defStyleAttr);
+		init(context, attrs);
+	}
 
-    /**
-     * Sets callback for 'add' button.
-     *
-     * @param attachmentsListener input callback
-     */
-    public void setAttachmentsListener(AttachmentsListener attachmentsListener) {
-        this.attachmentsListener = attachmentsListener;
-    }
+	/**
+	 * Set callback to be invoked when user entered his input
+	 *
+	 * @param inputListener input callback
+	 */
+	public void setInputListener(InputListener inputListener) {
+		this.inputListener = inputListener;
+	}
 
-    /**
-     * Returns EditText for messages input
-     *
-     * @return EditText
-     */
-    public EditText getInputEditText() {
-        return messageInput;
-    }
+	/**
+	 * Returns EditText for messages input
+	 *
+	 * @return EditText
+	 */
+	public EditText getInputEditText() {
+		return messageInput;
+	}
 
-    /**
-     * Returns `submit` button
-     *
-     * @return ImageButton
-     */
-    public ImageButton getButton() {
-        return messageSendButton;
-    }
+	/**
+	 * Returns `submit` button
+	 *
+	 * @return ImageButton
+	 */
+	public ImageButton getButton() {
+		return messageSendButton;
+	}
 
-    @Override
-    public void onClick(View view) {
-        int id = view.getId();
-        if (id == R.id.messageSendButton) {
-            boolean isSubmitted = onSubmit();
-            if (isSubmitted) {
-                messageInput.setText("");
-            }
-        } else if (id == R.id.attachmentButton) {
-            onAddAttachments();
-        }
-    }
+	@Override
+	public void onClick(View view) {
+		int id = view.getId();
+		if (id == R.id.messageSendButton) {
+			boolean isSubmitted = onSubmit();
+			if (isSubmitted) {
+				messageInput.setText("");
+			}
+		}
+	}
 
-    /**
-     * This method is called to notify you that, within s,
-     * the count characters beginning at start have just replaced old text that had length before
-     */
-    @Override
-    public void onTextChanged(CharSequence s, int start, int count, int after) {
-        input = s;
-        messageSendButton.setEnabled(input.length() > 0);
-    }
+	/**
+	 * This method is called to notify you that, within s,
+	 * the count characters beginning at start have just replaced old text that had length before
+	 */
+	@Override
+	public void onTextChanged(CharSequence s, int start, int count, int after) {
+		input = s;
+		messageSendButton.setVisibility(input.length() > 0 ? View.VISIBLE : View.INVISIBLE);
+		if (inputListener != null) {
+			inputListener.onTextChanged(s);
+		}
+	}
 
-    /**
-     * This method is called to notify you that, within s,
-     * the count characters beginning at start are about to be replaced by new text with length after.
-     */
-    @Override
-    public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
+	/**
+	 * This method is called to notify you that, within s,
+	 * the count characters beginning at start are about to be replaced by new text with length after.
+	 */
+	@Override
+	public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
 
-    }
+	}
 
-    /**
-     * This method is called to notify you that, somewhere within s, the text has been changed.
-     */
-    @Override
-    public void afterTextChanged(Editable editable) {
+	/**
+	 * This method is called to notify you that, somewhere within s, the text has been changed.
+	 */
+	@Override
+	public void afterTextChanged(Editable editable) {
 
-    }
+	}
 
-    private boolean onSubmit() {
-        return inputListener != null && inputListener.onSubmit(input);
-    }
+	private boolean onSubmit() {
+		return inputListener != null && inputListener.onSubmit(input);
+	}
 
-    private void onAddAttachments() {
-        if (attachmentsListener != null) attachmentsListener.onAddAttachments();
-    }
+	private void init(Context context, AttributeSet attrs) {
+		MessageInputStyle style = MessageInputStyle.parse(context, attrs);
 
-    private void init(Context context, AttributeSet attrs) {
-        init(context);
-        MessageInputStyle style = MessageInputStyle.parse(context, attrs);
+		mInputLayout = style.getInputLayout();
+		init(context);
 
-        this.messageInput.setMaxLines(style.getInputMaxLines());
-        this.messageInput.setHint(style.getInputHint());
-        this.messageInput.setText(style.getInputText());
-        this.messageInput.setTextSize(TypedValue.COMPLEX_UNIT_PX, style.getInputTextSize());
-        this.messageInput.setTextColor(style.getInputTextColor());
-        this.messageInput.setHintTextColor(style.getInputHintColor());
-        this.messageInput.setBackground(style.getInputBackground());
-        setCursor(style.getInputCursorDrawable());
+		this.messageInput.setMaxLines(style.getInputMaxLines());
+		this.messageInput.setHint(style.getInputHint());
+		this.messageInput.setText(style.getInputText());
+		this.messageInput.setTextSize(TypedValue.COMPLEX_UNIT_PX, style.getInputTextSize());
+		this.messageInput.setTextColor(style.getInputTextColor());
+		this.messageInput.setHintTextColor(style.getInputHintColor());
+		this.messageInput.setBackground(style.getInputBackground());
+		setCursor(style.getInputCursorDrawable());
 
-        this.attachmentButton.setVisibility(style.showAttachmentButton() ? VISIBLE : GONE);
-        this.attachmentButton.setBackground(style.getAttachmentButtonBackground());
-        this.attachmentButton.setImageDrawable(style.getAttachmentButtonIcon());
-        this.attachmentButton.getLayoutParams().width = style.getAttachmentButtonWidth();
-        this.attachmentButton.getLayoutParams().height = style.getAttachmentButtonHeight();
+		this.messageSendButton.setBackground(style.getInputButtonBackground());
+		this.messageSendButton.setImageDrawable(style.getInputButtonIcon());
+		this.messageSendButton.getLayoutParams().width = style.getInputButtonWidth();
+		this.messageSendButton.getLayoutParams().height = style.getInputButtonHeight();
+		this.buttonSpace.getLayoutParams().width = style.getInputButtonMargin();
 
-        this.attachmentButtonSpace.setVisibility(style.showAttachmentButton() ? VISIBLE : GONE);
-        this.attachmentButtonSpace.getLayoutParams().width = style.getAttachmentButtonMargin();
+		if (getPaddingLeft() == 0
+				&& getPaddingRight() == 0
+				&& getPaddingTop() == 0
+				&& getPaddingBottom() == 0) {
+			setPadding(
+					style.getInputDefaultPaddingLeft(),
+					style.getInputDefaultPaddingTop(),
+					style.getInputDefaultPaddingRight(),
+					style.getInputDefaultPaddingBottom()
+			);
+		}
+	}
 
-        this.messageSendButton.setBackground(style.getInputButtonBackground());
-        this.messageSendButton.setImageDrawable(style.getInputButtonIcon());
-        this.messageSendButton.getLayoutParams().width = style.getInputButtonWidth();
-        this.messageSendButton.getLayoutParams().height = style.getInputButtonHeight();
-        this.sendButtonSpace.getLayoutParams().width = style.getInputButtonMargin();
+	private void init(Context context) {
+		if (mInputLayout > 0) {
+			inflate(context, mInputLayout, this);
+		} else {
+			inflate(context, R.layout.view_message_input, this);
+		}
 
-        if (getPaddingLeft() == 0
-                && getPaddingRight() == 0
-                && getPaddingTop() == 0
-                && getPaddingBottom() == 0) {
-            setPadding(
-                    style.getInputDefaultPaddingLeft(),
-                    style.getInputDefaultPaddingTop(),
-                    style.getInputDefaultPaddingRight(),
-                    style.getInputDefaultPaddingBottom()
-            );
-        }
-    }
+		messageInput = (EditText) findViewById(R.id.messageInput);
+		messageSendButton = (ImageButton) findViewById(R.id.messageSendButton);
+		buttonSpace = (Space) findViewById(R.id.buttonSpace);
 
-    private void init(Context context) {
-        inflate(context, R.layout.view_message_input, this);
+		messageSendButton.setOnClickListener(this);
+		messageInput.addTextChangedListener(this);
+		messageInput.setText("");
+	}
 
-        messageInput = (EditText) findViewById(R.id.messageInput);
-        messageSendButton = (ImageButton) findViewById(R.id.messageSendButton);
-        attachmentButton = (ImageButton) findViewById(R.id.attachmentButton);
-        sendButtonSpace = (Space) findViewById(R.id.sendButtonSpace);
-        attachmentButtonSpace = (Space) findViewById(R.id.attachmentButtonSpace);
+	private void setCursor(Drawable drawable) {
+		try {
+			Field f = TextView.class.getDeclaredField("mCursorDrawableRes");
+			f.setAccessible(true);
+			f.set(this.messageInput, drawable);
+		} catch (Exception ignore) {
+		}
+	}
 
-        messageSendButton.setOnClickListener(this);
-        attachmentButton.setOnClickListener(this);
-        messageInput.addTextChangedListener(this);
-        messageInput.setText("");
-    }
+	/**
+	 * Interface definition for a callback to be invoked when user entered his input
+	 */
+	public interface InputListener {
 
-    private void setCursor(Drawable drawable) {
-        try {
-            Field f = TextView.class.getDeclaredField("mCursorDrawableRes");
-            f.setAccessible(true);
-            f.set(this.messageInput, drawable);
-        } catch (Exception ignore) {
-        }
-    }
+		/**
+		 * Fires when user press send button.
+		 *
+		 * @param input input entered by user
+		 * @return if input text is valid, you must return {@code true} and input will be cleared, otherwise return false.
+		 */
+		boolean onSubmit(CharSequence input);
 
-    /**
-     * Interface definition for a callback to be invoked when user pressed 'submit' button
-     */
-    public interface InputListener {
-
-        /**
-         * Fires when user presses 'send' button.
-         *
-         * @param input input entered by user
-         * @return if input text is valid, you must return {@code true} and input will be cleared, otherwise return false.
-         */
-        boolean onSubmit(CharSequence input);
-    }
-
-    /**
-     * Interface definition for a callback to be invoked when user presses 'add' button
-     */
-    public interface AttachmentsListener {
-
-        /**
-         * Fires when user presses 'add' button.
-         */
-        void onAddAttachments();
-    }
+		void onTextChanged(CharSequence text);
+	}
 }

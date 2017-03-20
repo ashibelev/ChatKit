@@ -39,3 +39,5 @@ android/proguard/
 .idea/
 build/
 .gradle
+
+.DS_Store

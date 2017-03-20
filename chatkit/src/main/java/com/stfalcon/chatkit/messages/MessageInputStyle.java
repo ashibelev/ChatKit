@@ -23,6 +23,8 @@ import android.graphics.drawable.Drawable;
 import android.support.annotation.ColorInt;
 import android.support.annotation.DrawableRes;
 import android.support.v4.graphics.drawable.DrawableCompat;
+import android.support.annotation.LayoutRes;
+import android.support.v4.content.ContextCompat;
 import android.util.AttributeSet;
 
 import com.stfalcon.chatkit.R;
@@ -81,6 +83,8 @@ class MessageInputStyle extends Style {
     private int inputDefaultPaddingTop;
     private int inputDefaultPaddingBottom;
 
+    private int inputLayout;
+
     static MessageInputStyle parse(Context context, AttributeSet attrs) {
         MessageInputStyle style = new MessageInputStyle(context, attrs);
         TypedArray typedArray = context.obtainStyledAttributes(attrs, R.styleable.MessageInput);
@@ -137,6 +141,8 @@ class MessageInputStyle extends Style {
 
         style.inputBackground = typedArray.getDrawable(R.styleable.MessageInput_inputBackground);
         style.inputCursorDrawable = typedArray.getDrawable(R.styleable.MessageInput_inputCursorDrawable);
+
+        style.inputLayout = typedArray.getResourceId(R.styleable.MessageInput_inputLayout, 0);
 
         typedArray.recycle();
 
@@ -281,4 +287,12 @@ class MessageInputStyle extends Style {
         return inputDefaultPaddingBottom;
     }
 
+    Drawable getInputButtonIcon() {
+        return inputButtonIcon;
+    }
+
+    @LayoutRes
+    int getInputLayout() {
+        return inputLayout;
+    }
 }

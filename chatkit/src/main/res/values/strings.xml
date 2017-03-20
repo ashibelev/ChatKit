@@ -1,1 +1,5 @@
-<resources/>
+<resources>
+
+	<string name="typing">typing…</string>
+
+</resources>

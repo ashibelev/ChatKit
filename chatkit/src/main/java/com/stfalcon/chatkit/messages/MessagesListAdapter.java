@@ -44,337 +44,568 @@ import java.util.List;
  * Adapter for {@link MessagesList}.
  */
 public class MessagesListAdapter<MESSAGE extends IMessage>
-        extends RecyclerView.Adapter<ViewHolder>
-        implements RecyclerScrollMoreListener.OnLoadMoreListener {
+		extends RecyclerView.Adapter<ViewHolder>
+		implements RecyclerScrollMoreListener.OnLoadMoreListener {
 
-    private MessageHolders holders;
-    private String senderId;
-    private List<Wrapper> items;
+	private static final int VIEW_TYPE_INCOMING_MESSAGE  = 0x00;
+	private static final int VIEW_TYPE_OUTCOMING_MESSAGE = 0x01;
+	private static final int VIEW_TYPE_DATE_HEADER       = 0x02;
+	private static final int VIEW_TYPE_TYPING            = 0x03;
 
-    private int selectedItemsCount;
-    private SelectionListener selectionListener;
+	private HoldersConfig holders;
+	private String        senderId;
+	private List<Wrapper> items;
 
-    static boolean isSelectionModeEnabled;
+	private int               selectedItemsCount;
+	private boolean           isSelectMode;
+	private SelectionListener selectionListener;
 
-    private OnLoadMoreListener loadMoreListener;
-    private OnMessageClickListener<MESSAGE> onMessageClickListener;
-    private OnMessageLongClickListener<MESSAGE> onMessageLongClickListener;
-    private ImageLoader imageLoader;
-    private RecyclerView.LayoutManager layoutManager;
-    private MessagesListStyle messagesListStyle;
-    private DateFormatter.Formatter dateHeadersFormatter;
+	private OnLoadMoreListener                  loadMoreListener;
+	private OnMessageClickListener<MESSAGE>     onMessageClickListener;
+	private OnMessageLongClickListener<MESSAGE> onMessageLongClickListener;
+	private ImageLoader                         imageLoader;
+	private RecyclerView.LayoutManager          layoutManager;
+	private MessagesListStyle                   messagesListStyle;
 
-    /**
-     * For default list item layout and view holder.
-     *
-     * @param senderId    identifier of sender.
-     * @param imageLoader image loading method.
-     */
-    public MessagesListAdapter(String senderId, ImageLoader imageLoader) {
-        this(senderId, new MessageHolders(), imageLoader);
-    }
+	/**
+	 * For default list item layout and view holder.
+	 *
+	 * @param senderId    identifier of sender.
+	 * @param imageLoader image loading method.
+	 */
+	public MessagesListAdapter(String senderId, ImageLoader imageLoader) {
+		this(senderId, new HoldersConfig(), imageLoader);
+	}
 
-    /**
-     * For default list item layout and view holder.
-     *
-     * @param senderId            identifier of sender.
-     * @param holders custom layouts and view holders. See {@link MessageHolders} documentation for details
-     * @param imageLoader         image loading method.
-     */
-    public MessagesListAdapter(String senderId, MessageHolders holders,
-                               ImageLoader imageLoader) {
-        this.senderId = senderId;
-        this.holders = holders;
-        this.imageLoader = imageLoader;
-        this.items = new ArrayList<>();
-    }
+	/**
+	 * For default list item layout and view holder.
+	 *
+	 * @param senderId    identifier of sender.
+	 * @param holders     custom layouts and view holders. See {@link HoldersConfig} documentation for details
+	 * @param imageLoader image loading method.
+	 */
+	public MessagesListAdapter(String senderId, HoldersConfig holders,
+							   ImageLoader imageLoader) {
+		this.senderId = senderId;
+		this.holders = holders;
+		this.imageLoader = imageLoader;
+		this.items = new ArrayList<>();
+	}
 
-    @Override
-    public ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-        return holders.getHolder(parent, viewType, messagesListStyle);
-    }
+	@Override
+	public ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+		switch (viewType) {
+			case VIEW_TYPE_INCOMING_MESSAGE:
+				return getHolder(parent, holders.incomingLayout, holders.incomingHolder);
+			case VIEW_TYPE_OUTCOMING_MESSAGE:
+				return getHolder(parent, holders.outcomingLayout, holders.outcomingHolder);
+			case VIEW_TYPE_DATE_HEADER:
+				return getHolder(parent, holders.dateHeaderLayout, holders.dateHeaderHolder);
+			case VIEW_TYPE_TYPING:
+				return getHolder(parent, holders.typingLayout, holders.typingHolder);
+		}
+		return null;
+	}
 
-    @SuppressWarnings("unchecked")
-    @Override
-    public void onBindViewHolder(ViewHolder holder, int position) {
-        Wrapper wrapper = items.get(position);
-        holders.bind(holder, wrapper.item, wrapper.isSelected, imageLoader,
-                getMessageClickListener(wrapper),
-                getMessageLongClickListener(wrapper),
-                dateHeadersFormatter);
-    }
+	private <HOLDER extends ViewHolder>
+	ViewHolder getHolder(ViewGroup parent, @LayoutRes int layout, Class<HOLDER> holderClass) {
+		View v = LayoutInflater.from(parent.getContext()).inflate(layout, parent, false);
 
-    @Override
-    public int getItemCount() {
-        return items.size();
-    }
+		try {
+			Constructor<HOLDER> constructor = holderClass.getDeclaredConstructor(View.class);
+			constructor.setAccessible(true);
+			HOLDER holder = constructor.newInstance(v);
+			if (holder instanceof DefaultMessageViewHolder) {
+				((DefaultMessageViewHolder) holder).applyStyle(messagesListStyle);
+			}
+			return holder;
+		} catch (Exception e) {
+			return null;
+		}
+	}
 
-    @Override
-    public int getItemViewType(int position) {
-        return holders.getViewType(items.get(position).item, senderId);
-    }
+	@SuppressWarnings("unchecked")
+	@Override
+	public void onBindViewHolder(ViewHolder holder, int position) {
+		Wrapper wrapper = items.get(position);
 
-    @Override
-    public void onLoadMore(int page, int total) {
-        if (loadMoreListener != null) {
-            loadMoreListener.onLoadMore(page, total);
-        }
-    }
+		if (wrapper.item instanceof IMessage) {
+			((BaseMessageViewHolder) holder).isSelected = wrapper.isSelected;
+			((BaseMessageViewHolder) holder).imageLoader = this.imageLoader;
+			holder.itemView.setOnLongClickListener(getMessageLongClickListener(wrapper));
+			holder.itemView.setOnClickListener(getMessageClickListener(wrapper));
+		}
+
+		holder.onBind(wrapper.item);
+	}
+
+	@Override
+	public int getItemCount() {
+		return items.size();
+	}
+
+	@Override
+	public int getItemViewType(int position) {
+		Wrapper wrapper = items.get(position);
+		if (wrapper.item instanceof IMessage) {
+			IMessage message = (IMessage) wrapper.item;
+			if (message.getUser().getId().contentEquals(senderId)) {
+				return VIEW_TYPE_OUTCOMING_MESSAGE;
+			} else {
+				switch (message.getType()) {
+					case IMessage.TYPE_TYPING:
+						return VIEW_TYPE_TYPING;
+					default:
+						return VIEW_TYPE_INCOMING_MESSAGE;
+				}
+			}
+		} else {
+			return VIEW_TYPE_DATE_HEADER;
+		}
+	}
+
+	@Override
+	public void onLoadMore(int page, int total) {
+		if (loadMoreListener != null) {
+			loadMoreListener.onLoadMore(page, total);
+		}
+	}
 
     /*
-    * PUBLIC METHODS
+	* PUBLIC METHODS
     * */
 
-    /**
-     * Adds message to bottom of list and scroll if needed.
-     *
-     * @param message message to add.
-     * @param scroll  {@code true} if need to scroll list to bottom when message added.
-     */
-    public void addToStart(MESSAGE message, boolean scroll) {
-        boolean isNewMessageToday = !isPreviousSameDate(0, message.getCreatedAt());
-        if (isNewMessageToday) {
-            items.add(0, new Wrapper<>(message.getCreatedAt()));
-        }
-        Wrapper<MESSAGE> element = new Wrapper<>(message);
-        items.add(0, element);
-        notifyItemRangeInserted(0, isNewMessageToday ? 2 : 1);
-        if (layoutManager != null && scroll) {
-            layoutManager.scrollToPosition(0);
-        }
-    }
+	/**
+	 * Adds message to bottom of list and scroll if needed.
+	 *
+	 * @param message message to add.
+	 * @param scroll  {@code true} if need to scroll list to bottom when message added.
+	 */
+	public void addToStart(MESSAGE message, boolean scroll) {
+		// Typing again
+		if (message.getType().equals(IMessage.TYPE_TYPING) && isTypingExists()) {
+			return;
+		}
 
-    /**
-     * Adds messages list in chronological order. Use this method to add history.
-     *
-     * @param messages messages from history.
-     * @param reverse  {@code true} if need to reverse messages before adding.
-     */
-    public void addToEnd(List<MESSAGE> messages, boolean reverse) {
-        if (reverse) Collections.reverse(messages);
+		// Message with typing exists
+		if (isTypingExists()) {
+			// If message from sender
+			if (message.getUser().getId().contentEquals(senderId)) {
+				Wrapper<MESSAGE> element = new Wrapper<>(message);
+				items.add(1, element);
+				notifyItemRangeInserted(1, 1);
+			} else { // Just update typing message
+				update(IMessage.TYPE_TYPING, message);
+			}
+			return;
+		}
 
-        if (!items.isEmpty()) {
-            int lastItemPosition = items.size() - 1;
-            Date lastItem = (Date) items.get(lastItemPosition).item;
-            if (DateFormatter.isSameDay(messages.get(0).getCreatedAt(), lastItem)) {
-                items.remove(lastItemPosition);
-                notifyItemRemoved(lastItemPosition);
-            }
-        }
+		boolean isNewMessageToday = !isPreviousSamePeriod(0, message.getCreatedAt());
+		if (isNewMessageToday) {
+			items.add(0, new Wrapper<>(message.getCreatedAt()));
+		}
 
-        int oldSize = items.size();
-        generateDateHeaders(messages);
-        notifyItemRangeInserted(oldSize, items.size() - oldSize);
-    }
+		Wrapper<MESSAGE> element = new Wrapper<>(message);
+		items.add(0, element);
+		notifyItemRangeInserted(0, isNewMessageToday ? 2 : 1);
+		if (layoutManager != null && scroll) {
+			layoutManager.scrollToPosition(0);
+		}
+	}
 
-    /**
-     * Updates message by its id.
-     *
-     * @param message updated message object.
-     */
-    public void update(MESSAGE message) {
-        update(message.getId(), message);
-    }
+	/**
+	 * Adds messages list in chronological order. Use this method to add history.
+	 *
+	 * @param messages messages from history.
+	 * @param reverse  {@code true} if need to reverse messages before adding.
+	 */
+	public void addToEnd(List<MESSAGE> messages, boolean reverse) {
+		if (reverse) Collections.reverse(messages);
 
-    /**
-     * Updates message by old identifier (use this method if id has changed). Otherwise use {@link #update(IMessage)}
-     *
-     * @param oldId      an identifier of message to update.
-     * @param newMessage new message object.
-     */
-    public void update(String oldId, MESSAGE newMessage) {
-        int position = getMessagePositionById(oldId);
-        if (position >= 0) {
-            Wrapper<MESSAGE> element = new Wrapper<>(newMessage);
-            items.set(position, element);
-            notifyItemChanged(position);
-        }
-    }
+		if (!items.isEmpty()) {
+			int lastItemPosition = items.size() - 1;
+			Date lastItem = (Date) items.get(lastItemPosition).item;
+			if (DateFormatter.isSamePeriod(messages.get(0).getCreatedAt(), lastItem)) {
+				items.remove(lastItemPosition);
+				notifyItemRemoved(lastItemPosition);
+			}
+		}
 
-    /**
-     * Deletes message.
-     *
-     * @param message message to delete.
-     */
-    public void delete(MESSAGE message) {
-        deleteById(message.getId());
-    }
+		int oldSize = items.size();
+		generateDateHeaders(messages);
+		notifyItemRangeInserted(oldSize, items.size() - oldSize);
+	}
 
-    /**
-     * Deletes messages list.
-     *
-     * @param messages messages list to delete.
-     */
-    public void delete(List<MESSAGE> messages) {
-        for (MESSAGE message : messages) {
-            int index = getMessagePositionById(message.getId());
-            items.remove(index);
-            notifyItemRemoved(index);
-        }
-        recountDateHeaders();
-    }
+	/**
+	 * Updates message by its id.
+	 *
+	 * @param message updated message object.
+	 */
+	public void update(MESSAGE message) {
+		update(message.getId(), message);
+	}
 
-    /**
-     * Deletes message by its identifier.
-     *
-     * @param id identifier of message to delete.
-     */
-    public void deleteById(String id) {
-        int index = getMessagePositionById(id);
-        if (index >= 0) {
-            items.remove(index);
-            notifyItemRemoved(index);
-            recountDateHeaders();
-        }
-    }
+	/**
+	 * Updates message by old identifier (use this method if id has changed). Otherwise use {@link #update(IMessage)}
+	 *
+	 * @param oldId      an identifier of message to update.
+	 * @param newMessage new message object.
+	 */
+	public void update(String oldId, MESSAGE newMessage) {
+		int position = getMessagePositionById(oldId);
+		if (position >= 0) {
+			Wrapper<MESSAGE> element = new Wrapper<>(newMessage);
+			items.set(position, element);
+			notifyItemChanged(position);
+		}
+	}
 
-    /**
-     * Deletes messages by its identifiers.
-     *
-     * @param ids array of identifiers of messages to delete.
-     */
-    public void deleteByIds(String[] ids) {
-        for (String id : ids) {
-            int index = getMessagePositionById(id);
-            items.remove(index);
-            notifyItemRemoved(index);
-        }
-        recountDateHeaders();
-    }
+	/**
+	 * Deletes message.
+	 *
+	 * @param message message to delete.
+	 */
+	public void delete(MESSAGE message) {
+		deleteById(message.getId());
+	}
 
-    /**
-     * Returns {@code true} if, and only if, messages count in adapter is non-zero.
-     *
-     * @return {@code true} if size is 0, otherwise {@code false}
-     */
-    public boolean isEmpty() {
-        return items.isEmpty();
-    }
+	/**
+	 * Deletes messages list.
+	 *
+	 * @param messages messages list to delete.
+	 */
+	public void delete(List<MESSAGE> messages) {
+		for (MESSAGE message : messages) {
+			int index = getMessagePositionById(message.getId());
+			items.remove(index);
+			notifyItemRemoved(index);
+		}
+		recountDateHeaders();
+	}
 
-    /**
-     * Clears the messages list.
-     */
-    public void clear() {
-        items.clear();
-    }
+	/**
+	 * Deletes message by its identifier.
+	 *
+	 * @param id identifier of message to delete.
+	 */
+	public void deleteById(String id) {
+		int index = getMessagePositionById(id);
+		if (index >= 0) {
+			items.remove(index);
+			notifyItemRemoved(index);
+			recountDateHeaders();
+		}
+	}
 
-    /**
-     * Enables selection mode.
-     *
-     * @param selectionListener listener for selected items count. To get selected messages use {@link #getSelectedMessages()}.
-     */
-    public void enableSelectionMode(SelectionListener selectionListener) {
-        if (selectionListener == null) {
-            throw new IllegalArgumentException("SelectionListener must not be null. Use `disableSelectionMode()` if you want tp disable selection mode");
-        } else {
-            this.selectionListener = selectionListener;
-        }
-    }
+	/**
+	 * Deletes messages by its identifiers.
+	 *
+	 * @param ids array of identifiers of messages to delete.
+	 */
+	public void deleteByIds(String[] ids) {
+		for (String id : ids) {
+			int index = getMessagePositionById(id);
+			items.remove(index);
+			notifyItemRemoved(index);
+		}
+		recountDateHeaders();
+	}
 
-    /**
-     * Disables selection mode and removes {@link SelectionListener}.
-     */
-    public void disableSelectionMode() {
-        this.selectionListener = null;
-        unselectAllItems();
-    }
+	/**
+	 * Clears the messages list.
+	 */
+	public void clear() {
+		items.clear();
+	}
 
-    /**
-     * Returns the list of selected messages.
-     *
-     * @return list of selected messages. Empty list if nothing was selected or selection mode is disabled.
-     */
-    @SuppressWarnings("unchecked")
-    public ArrayList<MESSAGE> getSelectedMessages() {
-        ArrayList<MESSAGE> selectedMessages = new ArrayList<>();
-        for (Wrapper wrapper : items) {
-            if (wrapper.item instanceof IMessage && wrapper.isSelected) {
-                selectedMessages.add((MESSAGE) wrapper.item);
-            }
-        }
-        return selectedMessages;
-    }
+	private boolean isTypingExists() {
+		if (items.size() == 0) {
+			return false;
+		}
 
-    /**
-     * Returns selected messages text and do {@link #unselectAllItems()} for you.
-     *
-     * @param formatter The formatter that allows you to format your message model when copying.
-     * @param reverse   Change ordering when copying messages.
-     * @return formatted text by {@link Formatter}. If it's {@code null} - {@code MESSAGE#toString()} will be used.
-     */
-    public String getSelectedMessagesText(Formatter<MESSAGE> formatter, boolean reverse) {
-        String copiedText = getSelectedText(formatter, reverse);
-        unselectAllItems();
-        return copiedText;
-    }
+		Wrapper lastItem = items.get(0);
+		if (lastItem.item instanceof IMessage) {
+			IMessage message = (IMessage) lastItem.item;
+			return message.getType().equals(IMessage.TYPE_TYPING);
+		}
+		return false;
+	}
 
-    /**
-     * Copies text to device clipboard and returns selected messages text. Also it does {@link #unselectAllItems()} for you.
-     *
-     * @param context   The context.
-     * @param formatter The formatter that allows you to format your message model when copying.
-     * @param reverse   Change ordering when copying messages.
-     * @return formatted text by {@link Formatter}. If it's {@code null} - {@code MESSAGE#toString()} will be used.
-     */
-    public String copySelectedMessagesText(Context context, Formatter<MESSAGE> formatter, boolean reverse) {
-        String copiedText = getSelectedText(formatter, reverse);
-        copyToClipboard(context, copiedText);
-        unselectAllItems();
-        return copiedText;
-    }
+	public void removeTyping() {
+		if (!isTypingExists()) {
+			return;
+		}
 
-    /**
-     * Unselect all of the selected messages. Notifies {@link SelectionListener} with zero count.
-     */
-    public void unselectAllItems() {
-        for (int i = 0; i < items.size(); i++) {
-            Wrapper wrapper = items.get(i);
-            if (wrapper.isSelected) {
-                wrapper.isSelected = false;
-                notifyItemChanged(i);
-            }
-        }
-        isSelectionModeEnabled = false;
-        selectedItemsCount = 0;
-        notifySelectionChanged();
-    }
+		// If date item before typing
+		int removedCount = 0;
+		if (!(items.get(1).item instanceof IMessage)) {
+			items.remove(1);
+			removedCount++;
+		}
 
-    /**
-     * Deletes all of the selected messages and disables selection mode.
-     * Call {@link #getSelectedMessages()} before calling this method to delete messages from your data source.
-     */
-    public void deleteSelectedMessages() {
-        List<MESSAGE> selectedMessages = getSelectedMessages();
-        delete(selectedMessages);
-        unselectAllItems();
-    }
+		// remove typing item
+		items.remove(0);
+		removedCount++;
+		notifyItemRangeRemoved(0, removedCount);
+	}
 
-    /**
-     * Sets click listener for item. Fires ONLY if list is not in selection mode.
-     *
-     * @param onMessageClickListener click listener.
-     */
-    public void setOnMessageClickListener(OnMessageClickListener<MESSAGE> onMessageClickListener) {
-        this.onMessageClickListener = onMessageClickListener;
-    }
+	/**
+	 * Enables selection mode.
+	 *
+	 * @param selectionListener listener for selected items count. To get selected messages use {@link #getSelectedMessages()}.
+	 */
+	public void enableSelectionMode(SelectionListener selectionListener) {
+		if (selectionListener == null) {
+			throw new IllegalArgumentException(
+					"SelectionListener must not be null. Use `disableSelectionMode()` if you want tp disable selection mode");
+		} else {
+			this.selectionListener = selectionListener;
+		}
+	}
 
-    /**
-     * Sets long click listener for item. Fires only if selection mode is disabled.
-     *
-     * @param onMessageLongClickListener long click listener.
-     */
-    public void setOnMessageLongClickListener(OnMessageLongClickListener<MESSAGE> onMessageLongClickListener) {
-        this.onMessageLongClickListener = onMessageLongClickListener;
-    }
+	/**
+	 * Disables selection mode and removes {@link SelectionListener}.
+	 */
+	public void disableSelectionMode() {
+		this.selectionListener = null;
+		unselectAllItems();
+	}
 
-    /**
-     * Set callback to be invoked when list scrolled to top.
-     *
-     * @param loadMoreListener listener.
-     */
-    public void setLoadMoreListener(OnLoadMoreListener loadMoreListener) {
-        this.loadMoreListener = loadMoreListener;
-    }
+	/**
+	 * Returns the list of selected messages.
+	 *
+	 * @return list of selected messages. Empty list if nothing was selected or selection mode is disabled.
+	 */
+	@SuppressWarnings("unchecked")
+	public ArrayList<MESSAGE> getSelectedMessages() {
+		ArrayList<MESSAGE> selectedMessages = new ArrayList<>();
+		for (Wrapper wrapper : items) {
+			if (wrapper.item instanceof IMessage && wrapper.isSelected) {
+				selectedMessages.add((MESSAGE) wrapper.item);
+			}
+		}
+		return selectedMessages;
+	}
+
+	/**
+	 * Unselect all of the selected messages. Notifies {@link SelectionListener} with zero count.
+	 */
+	public void unselectAllItems() {
+		for (int i = 0; i < items.size(); i++) {
+			Wrapper wrapper = items.get(i);
+			if (wrapper.isSelected) {
+				wrapper.isSelected = false;
+				notifyItemChanged(i);
+			}
+		}
+		isSelectMode = false;
+		selectedItemsCount = 0;
+		notifySelectionChanged();
+	}
+
+	/**
+	 * Deletes all of the selected messages and disables selection mode.
+	 * Call {@link #getSelectedMessages()} before calling this method to delete messages from your data source.
+	 */
+	public void deleteSelectedMessages() {
+		List<MESSAGE> selectedMessages = getSelectedMessages();
+		delete(selectedMessages);
+		unselectAllItems();
+	}
+
+	/**
+	 * Sets click listener for item. Fires ONLY if list is not in selection mode.
+	 *
+	 * @param onMessageClickListener click listener.
+	 */
+	public void setOnMessageClickListener(OnMessageClickListener<MESSAGE> onMessageClickListener) {
+		this.onMessageClickListener = onMessageClickListener;
+	}
+
+	/**
+	 * Sets long click listener for item. Fires only if selection mode is disabled.
+	 *
+	 * @param onMessageLongClickListener long click listener.
+	 */
+	public void setOnMessageLongClickListener(OnMessageLongClickListener<MESSAGE> onMessageLongClickListener) {
+		this.onMessageLongClickListener = onMessageLongClickListener;
+	}
+
+	/**
+	 * Set callback to be invoked when list scrolled to top.
+	 *
+	 * @param loadMoreListener listener.
+	 */
+	public void setLoadMoreListener(OnLoadMoreListener loadMoreListener) {
+		this.loadMoreListener = loadMoreListener;
+	}
+
+	/*
+	* PRIVATE METHODS
+	* */
+	private void recountDateHeaders() {
+		List<Integer> indicesToDelete = new ArrayList<>();
+
+		for (int i = 0; i < items.size(); i++) {
+			Wrapper wrapper = items.get(i);
+			if (wrapper.item instanceof Date) {
+				if (i == 0) {
+					indicesToDelete.add(i);
+				} else {
+					if (items.get(i - 1).item instanceof Date) {
+						indicesToDelete.add(i);
+					}
+				}
+			}
+		}
+
+		Collections.reverse(indicesToDelete);
+		for (int i : indicesToDelete) {
+			items.remove(i);
+			notifyItemRemoved(i);
+		}
+	}
+
+	private void generateDateHeaders(List<MESSAGE> messages) {
+		for (int i = 0; i < messages.size(); i++) {
+			MESSAGE message = messages.get(i);
+			this.items.add(new Wrapper<>(message));
+			if (messages.size() > i + 1) {
+				MESSAGE nextMessage = messages.get(i + 1);
+				if (!DateFormatter.isSamePeriod(message.getCreatedAt(), nextMessage.getCreatedAt())) {
+					this.items.add(new Wrapper<>(message.getCreatedAt()));
+				}
+			} else {
+				this.items.add(new Wrapper<>(message.getCreatedAt()));
+			}
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	private int getMessagePositionById(String id) {
+		for (int i = 0; i < items.size(); i++) {
+			Wrapper wrapper = items.get(i);
+			if (wrapper.item instanceof IMessage) {
+				MESSAGE message = (MESSAGE) wrapper.item;
+				if (message.getId().contentEquals(id)) {
+					return i;
+				}
+			}
+		}
+		return -1;
+	}
+
+	@SuppressWarnings("unchecked")
+	private boolean isPreviousSameDate(int position, Date dateToCompare) {
+		if (items.size() <= position) return false;
+		if (items.get(position).item instanceof IMessage) {
+			Date previousPositionDate = ((MESSAGE) items.get(position).item).getCreatedAt();
+			return DateFormatter.isSameDay(dateToCompare, previousPositionDate);
+		} else return false;
+	}
+
+	private boolean isPreviousSamePeriod(int position, Date dateToCompare) {
+		if (items.size() <= position) return false;
+		if (items.get(position).item instanceof IMessage) {
+			Date previousPositionDate = ((MESSAGE) items.get(position).item).getCreatedAt();
+			return DateFormatter.isSamePeriod(dateToCompare, previousPositionDate);
+		} else return false;
+	}
+
+	@SuppressWarnings("unchecked")
+	private boolean isPreviousSameAuthor(String id, int position) {
+		int prevPosition = position + 1;
+		if (items.size() <= prevPosition) return false;
+
+		if (items.get(prevPosition).item instanceof IMessage) {
+			return ((MESSAGE) items.get(prevPosition).item).getUser().getId().contentEquals(id);
+		} else return false;
+	}
+
+	private void incrementSelectedItemsCount() {
+		selectedItemsCount++;
+		notifySelectionChanged();
+	}
+
+	private void decrementSelectedItemsCount() {
+		selectedItemsCount--;
+		isSelectMode = selectedItemsCount > 0;
+
+		notifySelectionChanged();
+	}
+
+	private void notifySelectionChanged() {
+		if (selectionListener != null) {
+			selectionListener.onSelectionChanged(selectedItemsCount);
+		}
+	}
+
+	private void notifyMessageClicked(MESSAGE message) {
+		if (onMessageClickListener != null) {
+			onMessageClickListener.onMessageClick(message);
+		}
+	}
+
+	private void notifyMessageLongClicked(MESSAGE message) {
+		if (onMessageLongClickListener != null) {
+			onMessageLongClickListener.onMessageLongClick(message);
+		}
+	}
+
+	private View.OnClickListener getMessageClickListener(final Wrapper<MESSAGE> wrapper) {
+		return new View.OnClickListener() {
+			@Override
+			public void onClick(View view) {
+				if (selectionListener != null && isSelectMode) {
+					wrapper.isSelected = !wrapper.isSelected;
+
+					if (wrapper.isSelected) incrementSelectedItemsCount();
+					else decrementSelectedItemsCount();
+
+					MESSAGE message = (wrapper.item);
+					notifyItemChanged(getMessagePositionById(message.getId()));
+				} else {
+					notifyMessageClicked(wrapper.item);
+				}
+			}
+		};
+	}
+
+	private View.OnLongClickListener getMessageLongClickListener(final Wrapper<MESSAGE> wrapper) {
+		return new View.OnLongClickListener() {
+			@Override
+			public boolean onLongClick(View view) {
+				if (selectionListener == null) {
+					notifyMessageLongClicked(wrapper.item);
+					return true;
+				} else {
+					isSelectMode = true;
+					view.callOnClick();
+					return true;
+				}
+			}
+		};
+	}
+
+	void setLayoutManager(RecyclerView.LayoutManager layoutManager) {
+		this.layoutManager = layoutManager;
+	}
+
+	void setStyle(MessagesListStyle style) {
+		this.messagesListStyle = style;
+	}
+
+	/*
+	* WRAPPER
+	* */
+	private class Wrapper<DATA> {
+		private DATA item;
+		boolean isSelected;
+
+		Wrapper(DATA item) {
+			this.item = item;
+		}
+	}
 
     /**
      * Sets custom {@link DateFormatter.Formatter} for text representation of date headers.
@@ -384,461 +615,439 @@ public class MessagesListAdapter<MESSAGE extends IMessage>
     }
 
     /*
-    * PRIVATE METHODS
+	* LISTENERS
     * */
-    private void recountDateHeaders() {
-        List<Integer> indicesToDelete = new ArrayList<>();
 
-        for (int i = 0; i < items.size(); i++) {
-            Wrapper wrapper = items.get(i);
-            if (wrapper.item instanceof Date) {
-                if (i == 0) {
-                    indicesToDelete.add(i);
-                } else {
-                    if (items.get(i - 1).item instanceof Date) {
-                        indicesToDelete.add(i);
-                    }
-                }
-            }
-        }
+	/**
+	 * Interface definition for a callback to be invoked when next part of messages need to be loaded.
+	 */
+	public interface OnLoadMoreListener {
 
-        Collections.reverse(indicesToDelete);
-        for (int i : indicesToDelete) {
-            items.remove(i);
-            notifyItemRemoved(i);
-        }
-    }
+		/**
+		 * Fires when user scrolled to the end of list.
+		 *
+		 * @param page            next page to download.
+		 * @param totalItemsCount current items count.
+		 */
+		void onLoadMore(int page, int totalItemsCount);
+	}
 
-    private void generateDateHeaders(List<MESSAGE> messages) {
-        for (int i = 0; i < messages.size(); i++) {
-            MESSAGE message = messages.get(i);
-            this.items.add(new Wrapper<>(message));
-            if (messages.size() > i + 1) {
-                MESSAGE nextMessage = messages.get(i + 1);
-                if (!DateFormatter.isSameDay(message.getCreatedAt(), nextMessage.getCreatedAt())) {
-                    this.items.add(new Wrapper<>(message.getCreatedAt()));
-                }
-            } else {
-                this.items.add(new Wrapper<>(message.getCreatedAt()));
-            }
-        }
-    }
+	/**
+	 * Interface definition for a callback to be invoked when selected messages count is changed.
+	 */
+	public interface SelectionListener {
 
-    @SuppressWarnings("unchecked")
-    private int getMessagePositionById(String id) {
-        for (int i = 0; i < items.size(); i++) {
-            Wrapper wrapper = items.get(i);
-            if (wrapper.item instanceof IMessage) {
-                MESSAGE message = (MESSAGE) wrapper.item;
-                if (message.getId().contentEquals(id)) {
-                    return i;
-                }
-            }
-        }
-        return -1;
-    }
+		/**
+		 * Fires when selected items count is changed.
+		 *
+		 * @param count count of selected items.
+		 */
+		void onSelectionChanged(int count);
+	}
 
-    @SuppressWarnings("unchecked")
-    private boolean isPreviousSameDate(int position, Date dateToCompare) {
-        if (items.size() <= position) return false;
-        if (items.get(position).item instanceof IMessage) {
-            Date previousPositionDate = ((MESSAGE) items.get(position).item).getCreatedAt();
-            return DateFormatter.isSameDay(dateToCompare, previousPositionDate);
-        } else return false;
-    }
+	/**
+	 * Interface definition for a callback to be invoked when message item is clicked.
+	 */
+	public interface OnMessageClickListener<MESSAGE extends IMessage> {
 
-    @SuppressWarnings("unchecked")
-    private boolean isPreviousSameAuthor(String id, int position) {
-        int prevPosition = position + 1;
-        if (items.size() <= prevPosition) return false;
+		/**
+		 * Fires when message was clicked.
+		 *
+		 * @param message clicked message.
+		 */
+		void onMessageClick(MESSAGE message);
+	}
 
-        if (items.get(prevPosition).item instanceof IMessage) {
-            return ((MESSAGE) items.get(prevPosition).item).getUser().getId().contentEquals(id);
-        } else return false;
-    }
+	/**
+	 * Interface definition for a callback to be invoked when message item is long clicked.
+	 */
+	public interface OnMessageLongClickListener<MESSAGE extends IMessage> {
 
-    private void incrementSelectedItemsCount() {
-        selectedItemsCount++;
-        notifySelectionChanged();
-    }
-
-    private void decrementSelectedItemsCount() {
-        selectedItemsCount--;
-        isSelectionModeEnabled = selectedItemsCount > 0;
-
-        notifySelectionChanged();
-    }
-
-    private void notifySelectionChanged() {
-        if (selectionListener != null) {
-            selectionListener.onSelectionChanged(selectedItemsCount);
-        }
-    }
-
-    private void notifyMessageClicked(MESSAGE message) {
-        if (onMessageClickListener != null) {
-            onMessageClickListener.onMessageClick(message);
-        }
-    }
-
-    private void notifyMessageLongClicked(MESSAGE message) {
-        if (onMessageLongClickListener != null) {
-            onMessageLongClickListener.onMessageLongClick(message);
-        }
-    }
-
-    private View.OnClickListener getMessageClickListener(final Wrapper<MESSAGE> wrapper) {
-        return new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                if (selectionListener != null && isSelectionModeEnabled) {
-                    wrapper.isSelected = !wrapper.isSelected;
-
-                    if (wrapper.isSelected) incrementSelectedItemsCount();
-                    else decrementSelectedItemsCount();
-
-                    MESSAGE message = (wrapper.item);
-                    notifyItemChanged(getMessagePositionById(message.getId()));
-                } else {
-                    notifyMessageClicked(wrapper.item);
-                }
-            }
-        };
-    }
-
-    private View.OnLongClickListener getMessageLongClickListener(final Wrapper<MESSAGE> wrapper) {
-        return new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View view) {
-                if (selectionListener == null) {
-                    notifyMessageLongClicked(wrapper.item);
-                    return true;
-                } else {
-                    isSelectionModeEnabled = true;
-                    view.callOnClick();
-                    return true;
-                }
-            }
-        };
-    }
-
-    private String getSelectedText(Formatter<MESSAGE> formatter, boolean reverse) {
-        StringBuilder builder = new StringBuilder();
-
-        ArrayList<MESSAGE> selectedMessages = getSelectedMessages();
-        if (reverse) Collections.reverse(selectedMessages);
-
-        for (MESSAGE message : selectedMessages) {
-            builder.append(formatter == null
-                    ? message.toString()
-                    : formatter.format(message));
-            builder.append("\n\n");
-        }
-        builder.replace(builder.length() - 2, builder.length(), "");
-
-        return builder.toString();
-    }
-
-    private void copyToClipboard(Context context, String copiedText) {
-        ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
-        ClipData clip = ClipData.newPlainText(copiedText, copiedText);
-        clipboard.setPrimaryClip(clip);
-    }
-
-    void setLayoutManager(RecyclerView.LayoutManager layoutManager) {
-        this.layoutManager = layoutManager;
-    }
-
-    void setStyle(MessagesListStyle style) {
-        this.messagesListStyle = style;
-    }
+		/**
+		 * Fires when message was long clicked.
+		 *
+		 * @param message clicked message.
+		 */
+		void onMessageLongClick(MESSAGE message);
+	}
 
     /*
-    * WRAPPER
+	* HOLDERS CONFIG
     * */
-    private class Wrapper<DATA> {
-        DATA item;
-        boolean isSelected;
 
-        Wrapper(DATA item) {
-            this.item = item;
-        }
-    }
+	/**
+	 * Configuration object for passing custom layouts and view holders into adapter.
+	 * You need to pass it into {@link MessagesListAdapter#MessagesListAdapter(String, HoldersConfig, ImageLoader)} to apply your changes.
+	 */
+	public static class HoldersConfig {
+
+		private Class<? extends BaseMessageViewHolder<? extends IMessage>> incomingHolder;
+		private int                                                        incomingLayout;
+
+		private Class<? extends BaseMessageViewHolder<? extends IMessage>> outcomingHolder;
+		private int                                                        outcomingLayout;
+
+		private Class<? extends ViewHolder<Date>> dateHeaderHolder;
+		private int                               dateHeaderLayout;
+
+		private Class<? extends BaseMessageViewHolder<? extends IMessage>> typingHolder;
+		private int                                                        typingLayout;
+
+		public HoldersConfig() {
+			this.incomingHolder = DefaultIncomingMessageViewHolder.class;
+			this.incomingLayout = R.layout.item_incoming_message;
+
+			this.outcomingHolder = DefaultOutcomingMessageViewHolder.class;
+			this.outcomingLayout = R.layout.item_outcoming_message;
+
+			this.dateHeaderHolder = DefaultDateHeaderViewHolder.class;
+			this.dateHeaderLayout = R.layout.item_date_header;
+
+			this.typingHolder = DefaultTypingViewHolder.class;
+			this.typingLayout = R.layout.item_typing;
+		}
+
+		/**
+		 * Sets both of custom view holder class and layout resource for incoming message.
+		 *
+		 * @param holder holder class.
+		 * @param layout layout resource.
+		 */
+		public void setIncoming(Class<? extends BaseMessageViewHolder<? extends IMessage>> holder, @LayoutRes int layout) {
+			this.incomingHolder = holder;
+			this.incomingLayout = layout;
+		}
+
+		/**
+		 * Sets custom view holder class for incoming message.
+		 *
+		 * @param holder holder class.
+		 */
+		public void setIncomingHolder(Class<? extends BaseMessageViewHolder<? extends IMessage>> holder) {
+			this.incomingHolder = holder;
+		}
+
+		/**
+		 * Sets custom layout resource for incoming message.
+		 *
+		 * @param layout layout resource.
+		 */
+		public void setIncomingLayout(@LayoutRes int layout) {
+			this.incomingLayout = layout;
+		}
+
+		/**
+		 * Sets both of custom view holder class and layout resource for incoming message.
+		 *
+		 * @param holder holder class.
+		 * @param layout layout resource.
+		 */
+		public void setOutcoming(Class<? extends BaseMessageViewHolder<? extends IMessage>> holder, @LayoutRes int layout) {
+			this.outcomingHolder = holder;
+			this.outcomingLayout = layout;
+		}
+
+		/**
+		 * Sets custom view holder class for outcoming message.
+		 *
+		 * @param holder holder class.
+		 */
+		public void setOutcomingHolder(Class<? extends BaseMessageViewHolder<? extends IMessage>> holder) {
+			this.outcomingHolder = holder;
+		}
+
+		/**
+		 * Sets custom layout resource for outcoming message.
+		 *
+		 * @param layout layout resource.
+		 */
+		public void setOutcomingLayout(@LayoutRes int layout) {
+			this.outcomingLayout = layout;
+		}
+
+		/*
+		 * Sets both of custom view holder class and layout resource for date header.
+		 *
+		 * @param holder holder class.
+		 * @param layout layout resource.
+		 */
+		public void setDateHeader(Class<? extends ViewHolder<Date>> holder, @LayoutRes int layout) {
+			this.dateHeaderHolder = holder;
+			this.dateHeaderLayout = layout;
+		}
+
+		/**
+		 * Sets custom view holder class for date header.
+		 *
+		 * @param holder holder class.
+		 */
+		public void setDateHeaderHolder(Class<? extends ViewHolder<Date>> holder) {
+			this.dateHeaderHolder = holder;
+		}
+
+		/**
+		 * Sets custom layout resource for date header.
+		 *
+		 * @param layout layout resource.
+		 */
+		public void setDateHeaderLayout(@LayoutRes int layout) {
+			this.dateHeaderLayout = layout;
+		}
+
+		/**
+		 * Sets both of custom view holder class and layout resource for typing status.
+		 *
+		 * @param holder holder class.
+		 * @param layout layout resource.
+		 */
+		public void setTyping(Class<? extends BaseMessageViewHolder<? extends IMessage>> holder, @LayoutRes int layout) {
+			this.typingHolder = holder;
+			this.typingLayout = layout;
+		}
+
+		/**
+		 * Sets custom view holder class for typing status.
+		 *
+		 * @param holder holder class.
+		 */
+		public void setTypingHolder(Class<? extends BaseMessageViewHolder<? extends IMessage>> holder) {
+			this.typingHolder = holder;
+		}
+
+		/**
+		 * Sets custom layout resource for typing status.
+		 *
+		 * @param layout layout resource.
+		 */
+		public void setTypingLayout(@LayoutRes int layout) {
+			this.typingLayout = layout;
+		}
+	}
 
     /*
-    * LISTENERS
+	* HOLDERS
     * */
 
-    /**
-     * Interface definition for a callback to be invoked when next part of messages need to be loaded.
-     */
-    public interface OnLoadMoreListener {
+	/**
+	 * The base class for view holders for incoming and outcoming message.
+	 * You can extend it to create your own holder in conjuction with custom layout or even using default layout.
+	 */
+	public static abstract class BaseMessageViewHolder<MESSAGE extends IMessage> extends ViewHolder<MESSAGE> {
 
-        /**
-         * Fires when user scrolled to the end of list.
-         *
-         * @param page            next page to download.
-         * @param totalItemsCount current items count.
-         */
-        void onLoadMore(int page, int totalItemsCount);
-    }
+		private boolean isSelected;
 
-    /**
-     * Interface definition for a callback to be invoked when selected messages count is changed.
-     */
-    public interface SelectionListener {
+		/**
+		 * Callback for implementing images loading in message list
+		 */
+		protected ImageLoader imageLoader;
 
-        /**
-         * Fires when selected items count is changed.
-         *
-         * @param count count of selected items.
-         */
-        void onSelectionChanged(int count);
-    }
+		public BaseMessageViewHolder(View itemView) {
+			super(itemView);
+		}
 
-    /**
-     * Interface definition for a callback to be invoked when message item is clicked.
-     */
-    public interface OnMessageClickListener<MESSAGE extends IMessage> {
+		/**
+		 * Make message unselected
+		 *
+		 * @return weather is item selected.
+		 */
+		public boolean isSelected() {
+			return isSelected;
+		}
 
-        /**
-         * Fires when message was clicked.
-         *
-         * @param message clicked message.
-         */
-        void onMessageClick(MESSAGE message);
-    }
+		/**
+		 * Getter for {@link #imageLoader}
+		 *
+		 * @return image loader interface.
+		 */
+		public ImageLoader getImageLoader() {
+			return imageLoader;
+		}
 
-    /**
-     * Interface definition for a callback to be invoked when message item is long clicked.
-     */
-    public interface OnMessageLongClickListener<MESSAGE extends IMessage> {
+	}
 
-        /**
-         * Fires when message was long clicked.
-         *
-         * @param message clicked message.
-         */
-        void onMessageLongClick(MESSAGE message);
-    }
+	interface DefaultMessageViewHolder {
+		void applyStyle(MessagesListStyle style);
+	}
 
-    /**
-     * Interface used to format your message model when copying.
-     */
-    public interface Formatter<MESSAGE> {
+	/**
+	 * Default view holder implementation for incoming message
+	 */
+	public static class IncomingMessageViewHolder<MESSAGE extends IMessage>
+			extends BaseMessageViewHolder<MESSAGE> implements DefaultMessageViewHolder {
 
-        /**
-         * Formats an string representation of the message object.
-         *
-         * @param message The object that should be formatted.
-         * @return Formatted text.
-         */
-        String format(MESSAGE message);
-    }
+		protected ViewGroup bubble;
+		protected TextView  text;
+		protected TextView  time;
+		protected ImageView userAvatar;
 
-    /**
-     * This class is deprecated. Use {@link MessageHolders} instead.
-     */
-    @Deprecated
-    public static class HoldersConfig extends MessageHolders {
+		public IncomingMessageViewHolder(View itemView) {
+			super(itemView);
+			bubble = (ViewGroup) itemView.findViewById(R.id.bubble);
+			text = (TextView) itemView.findViewById(R.id.messageText);
+			time = (TextView) itemView.findViewById(R.id.messageTime);
+			userAvatar = (ImageView) itemView.findViewById(R.id.messageUserAvatar);
+		}
 
-        /**
-         * This method is deprecated. Use {@link MessageHolders#setIncomingTextConfig(Class, int)} instead.
-         *
-         * @param holder holder class.
-         * @param layout layout resource.
-         */
-        @Deprecated
-        public void setIncoming(Class<? extends BaseMessageViewHolder<? extends IMessage>> holder, @LayoutRes int layout) {
-            super.setIncomingTextConfig(holder, layout);
-        }
+		@Override
+		public void onBind(MESSAGE message) {
+			bubble.setSelected(isSelected());
+			text.setText(message.getText());
+			time.setText(DateFormatter.format(message.getCreatedAt(), DateFormatter.Template.TIME));
+			imageLoader.loadImage(userAvatar, message.getUser().getAvatar());
+		}
 
-        /**
-         * This method is deprecated. Use {@link MessageHolders#setIncomingTextHolder(Class)} instead.
-         *
-         * @param holder holder class.
-         */
-        @Deprecated
-        public void setIncomingHolder(Class<? extends BaseMessageViewHolder<? extends IMessage>> holder) {
-            super.setIncomingTextHolder(holder);
-        }
+		@Override
+		public void applyStyle(MessagesListStyle style) {
+			bubble.setPadding(style.getIncomingDefaultBubblePaddingLeft(),
+							  style.getIncomingDefaultBubblePaddingTop(),
+							  style.getIncomingDefaultBubblePaddingRight(),
+							  style.getIncomingDefaultBubblePaddingBottom());
+			bubble.setBackground(style.getIncomingBubbleDrawable());
 
-        /**
-         * This method is deprecated. Use {@link MessageHolders#setIncomingTextLayout(int)} instead.
-         *
-         * @param layout layout resource.
-         */
-        @Deprecated
-        public void setIncomingLayout(@LayoutRes int layout) {
-            super.setIncomingTextLayout(layout);
-        }
+			text.setTextColor(style.getIncomingTextColor());
+			text.setTextSize(TypedValue.COMPLEX_UNIT_PX, style.getIncomingTextSize());
 
-        /**
-         * This method is deprecated. Use {@link MessageHolders#setOutcomingTextConfig(Class, int)} instead.
-         *
-         * @param holder holder class.
-         * @param layout layout resource.
-         */
-        @Deprecated
-        public void setOutcoming(Class<? extends BaseMessageViewHolder<? extends IMessage>> holder, @LayoutRes int layout) {
-            super.setOutcomingTextConfig(holder, layout);
-        }
+			userAvatar.getLayoutParams().width = style.getIncomingAvatarWidth();
+			userAvatar.getLayoutParams().height = style.getIncomingAvatarHeight();
 
-        /**
-         * This method is deprecated. Use {@link MessageHolders#setOutcomingTextHolder(Class)} instead.
-         *
-         * @param holder holder class.
-         */
-        @Deprecated
-        public void setOutcomingHolder(Class<? extends BaseMessageViewHolder<? extends IMessage>> holder) {
-            super.setOutcomingTextHolder(holder);
-        }
+			time.setTextColor(style.getIncomingTimeTextColor());
+			time.setTextSize(TypedValue.COMPLEX_UNIT_PX, style.getIncomingTimeTextSize());
+		}
+	}
 
-        /**
-         * This method is deprecated. Use {@link MessageHolders#setOutcomingTextLayout(int)} instead.
-         *
-         * @param layout layout resource.
-         */
-        @Deprecated
-        public void setOutcomingLayout(@LayoutRes int layout) {
-            this.setOutcomingTextLayout(layout);
-        }
+	private static class DefaultIncomingMessageViewHolder extends IncomingMessageViewHolder<IMessage> {
 
-        /**
-         * This method is deprecated. Use {@link MessageHolders#setDateHeaderConfig(Class, int)} instead.
-         *
-         * @param holder holder class.
-         * @param layout layout resource.
-         */
-        @Deprecated
-        public void setDateHeader(Class<? extends ViewHolder<Date>> holder, @LayoutRes int layout) {
-            super.setDateHeaderConfig(holder, layout);
-        }
-    }
+		public DefaultIncomingMessageViewHolder(View itemView) {
+			super(itemView);
+		}
+	}
 
-    /**
-     * This class is deprecated. Use {@link MessageHolders.BaseMessageViewHolder} instead.
-     */
-    @Deprecated
-    public static abstract class BaseMessageViewHolder<MESSAGE extends IMessage>
-            extends MessageHolders.BaseMessageViewHolder<MESSAGE> {
+	/**
+	 * Default view holder implementation for outcoming message
+	 */
+	public static class OutcomingMessageViewHolder<MESSAGE extends IMessage>
+			extends BaseMessageViewHolder<MESSAGE> implements DefaultMessageViewHolder {
 
-        private boolean isSelected;
+		protected ViewGroup bubble;
+		protected TextView  text;
+		protected TextView  time;
+		protected ImageView userAvatar;
 
-        /**
-         * Callback for implementing images loading in message list
-         */
-        protected ImageLoader imageLoader;
+		public OutcomingMessageViewHolder(View itemView) {
+			super(itemView);
+			bubble = (ViewGroup) itemView.findViewById(R.id.bubble);
+			text = (TextView) itemView.findViewById(R.id.messageText);
+			time = (TextView) itemView.findViewById(R.id.messageTime);
+			userAvatar = (ImageView) itemView.findViewById(R.id.messageUserAvatar);
+		}
 
-        public BaseMessageViewHolder(View itemView) {
-            super(itemView);
-        }
+		@Override
+		public void onBind(MESSAGE message) {
+			bubble.setSelected(isSelected());
+			text.setText(message.getText());
+			time.setText(DateFormatter.format(message.getCreatedAt(), DateFormatter.Template.TIME));
 
-        /**
-         * Returns whether is item selected
-         *
-         * @return weather is item selected.
-         */
-        public boolean isSelected() {
-            return isSelected;
-        }
+			if (userAvatar != null) {
+				boolean isAvatarExists = message.getUser().getAvatar() != null && !message.getUser()
+																						  .getAvatar()
+																						  .isEmpty();
+				userAvatar.setVisibility(isAvatarExists ? View.VISIBLE : View.GONE);
+				if (isAvatarExists && imageLoader != null) {
+					imageLoader.loadImage(userAvatar, message.getUser().getAvatar());
+				}
+			}
+		}
 
-        /**
-         * Returns weather is selection mode enabled
-         *
-         * @return weather is selection mode enabled.
-         */
-        public boolean isSelectionModeEnabled() {
-            return isSelectionModeEnabled;
-        }
+		@Override
+		public void applyStyle(MessagesListStyle style) {
+			bubble.setPadding(style.getOutcomingDefaultBubblePaddingLeft(),
+							  style.getOutcomingDefaultBubblePaddingTop(),
+							  style.getOutcomingDefaultBubblePaddingRight(),
+							  style.getOutcomingDefaultBubblePaddingBottom());
+			bubble.setBackground(style.getOutcomingBubbleDrawable());
 
-        /**
-         * Getter for {@link #imageLoader}
-         *
-         * @return image loader interface.
-         */
-        public ImageLoader getImageLoader() {
-            return imageLoader;
-        }
+			text.setTextColor(style.getOutcomingTextColor());
+			text.setTextSize(TypedValue.COMPLEX_UNIT_PX, style.getOutcomingTextSize());
 
-        protected void configureLinksBehavior(final TextView text) {
-            text.setLinksClickable(false);
-            text.setMovementMethod(new LinkMovementMethod() {
-                @Override
-                public boolean onTouchEvent(TextView widget, Spannable buffer, MotionEvent event) {
-                    boolean result = false;
-                    if (!isSelectionModeEnabled) {
-                        result = super.onTouchEvent(widget, buffer, event);
-                    }
-                    itemView.onTouchEvent(event);
-                    return result;
-                }
-            });
-        }
+			time.setTextColor(style.getOutcomingTimeTextColor());
+			time.setTextSize(TypedValue.COMPLEX_UNIT_PX, style.getOutcomingTimeTextSize());
+		}
+	}
 
-    }
+	private static class DefaultOutcomingMessageViewHolder extends OutcomingMessageViewHolder<IMessage> {
 
-    /**
-     * This class is deprecated. Use {@link MessageHolders.DefaultDateHeaderViewHolder} instead.
-     */
-    @Deprecated
-    public static class DefaultDateHeaderViewHolder extends ViewHolder<Date>
-            implements MessageHolders.DefaultMessageViewHolder {
+		public DefaultOutcomingMessageViewHolder(View itemView) {
+			super(itemView);
+		}
+	}
 
-        protected TextView text;
-        protected String dateFormat;
-        protected DateFormatter.Formatter dateHeadersFormatter;
+	/**
+	 * Default view holder implementation for date header
+	 */
+	public static class DefaultDateHeaderViewHolder extends ViewHolder<Date>
+			implements DefaultMessageViewHolder {
 
-        public DefaultDateHeaderViewHolder(View itemView) {
-            super(itemView);
-            text = (TextView) itemView.findViewById(R.id.messageText);
-        }
+		protected TextView text;
+		protected String   dateFormat;
 
-        @Override
-        public void onBind(Date date) {
-            if (text != null) {
-                String formattedDate = null;
-                if (dateHeadersFormatter != null) formattedDate = dateHeadersFormatter.format(date);
-                text.setText(formattedDate == null ? DateFormatter.format(date, dateFormat) : formattedDate);
-            }
-        }
+		public DefaultDateHeaderViewHolder(View itemView) {
+			super(itemView);
+			text = (TextView) itemView.findViewById(R.id.messageText);
+		}
 
-        @Override
-        public void applyStyle(MessagesListStyle style) {
-            if (text != null) {
-                text.setTextColor(style.getDateHeaderTextColor());
-                text.setTextSize(TypedValue.COMPLEX_UNIT_PX, style.getDateHeaderTextSize());
-                text.setTypeface(text.getTypeface(), style.getDateHeaderTextStyle());
-                text.setPadding(style.getDateHeaderPadding(), style.getDateHeaderPadding(),
-                        style.getDateHeaderPadding(), style.getDateHeaderPadding());
-            }
-            dateFormat = style.getDateHeaderFormat();
-            dateFormat = dateFormat == null ? DateFormatter.Template.STRING_DAY_MONTH_YEAR.get() : dateFormat;
-        }
-    }
+		@Override
+		public void onBind(Date date) {
+			text.setText(DateFormatter.format(date, dateFormat));
+		}
 
-    /**
-     * This class is deprecated. Use {@link MessageHolders.IncomingTextMessageViewHolder} instead.
-     */
-    @Deprecated
-    public static class IncomingMessageViewHolder<MESSAGE extends IMessage>
-            extends MessageHolders.IncomingTextMessageViewHolder<MESSAGE>
-            implements MessageHolders.DefaultMessageViewHolder {
+		@Override
+		public void applyStyle(MessagesListStyle style) {
+			text.setTextSize(TypedValue.COMPLEX_UNIT_PX, style.getDateHeaderTextSize());
+			text.setTextColor(style.getDateHeaderTextColor());
+			text.setPadding(style.getDateHeaderPadding(), style.getDateHeaderPadding(),
+							style.getDateHeaderPadding(), style.getDateHeaderPadding());
+			dateFormat = style.getDateHeaderFormat();
+			dateFormat = dateFormat == null ? DateFormatter.Template.STRING_MONTH.get() : dateFormat;
+		}
+	}
 
-        public IncomingMessageViewHolder(View itemView) {
-            super(itemView);
-        }
-    }
+	/**
+	 * Default view holder implementation for typing status
+	 */
+	public static class TypingViewHolder<MESSAGE extends IMessage>
+			extends BaseMessageViewHolder<MESSAGE> implements DefaultMessageViewHolder {
 
-    /**
-     * This class is deprecated. Use {@link MessageHolders.OutcomingTextMessageViewHolder} instead.
-     */
-    @Deprecated
-    public static class OutcomingMessageViewHolder<MESSAGE extends IMessage>
-            extends MessageHolders.OutcomingTextMessageViewHolder<MESSAGE> {
+		protected ViewGroup bubble;
+		protected ImageView userAvatar;
 
-        public OutcomingMessageViewHolder(View itemView) {
-            super(itemView);
-        }
-    }
+		public TypingViewHolder(View itemView) {
+			super(itemView);
+			bubble = (ViewGroup) itemView.findViewById(R.id.bubble);
+			userAvatar = (ImageView) itemView.findViewById(R.id.messageUserAvatar);
+		}
+
+		@Override
+		public void onBind(MESSAGE message) {
+			imageLoader.loadImage(userAvatar, message.getUser().getAvatar());
+		}
+
+		@Override
+		public void applyStyle(MessagesListStyle style) {
+			bubble.setPadding(style.getIncomingDefaultBubblePaddingLeft(),
+							  style.getIncomingDefaultBubblePaddingTop(),
+							  style.getIncomingDefaultBubblePaddingRight(),
+							  style.getIncomingDefaultBubblePaddingBottom());
+			bubble.setBackground(style.getIncomingBubbleDrawable());
+
+			userAvatar.getLayoutParams().width = style.getIncomingAvatarWidth();
+			userAvatar.getLayoutParams().height = style.getIncomingAvatarHeight();
+		}
+	}
+
+	private static class DefaultTypingViewHolder extends TypingViewHolder<IMessage> {
+
+		public DefaultTypingViewHolder(View itemView) {
+			super(itemView);
+		}
+	}
 }
