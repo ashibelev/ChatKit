@@ -41,6 +41,11 @@ public class DefaultMessagesActivity extends DemoMessagesActivity
     }
 
     @Override
+    public void onTextChanged(CharSequence text) {
+
+    }
+
+    @Override
     public void onAddAttachments() {
         super.messagesAdapter.addToStart(
                 MessagesFixtures.getImageMessage(), true);

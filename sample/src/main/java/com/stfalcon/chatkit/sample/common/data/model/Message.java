@@ -14,6 +14,7 @@ public class Message implements IMessage,
 
     private String id;
     private String text;
+    private String type;
     private Date createdAt;
     private User user;
     private Image image;
@@ -54,6 +55,15 @@ public class Message implements IMessage,
     public String getImageUrl() {
         return image == null ? null : image.url;
     }
+
+    @Override
+    public String getType() {
+        return type;
+    };
+
+    public void setType(String type) {
+        this.type = type;
+    };
 
     public Voice getVoice() {
         return voice;

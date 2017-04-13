@@ -287,10 +287,6 @@ class MessageInputStyle extends Style {
         return inputDefaultPaddingBottom;
     }
 
-    Drawable getInputButtonIcon() {
-        return inputButtonIcon;
-    }
-
     @LayoutRes
     int getInputLayout() {
         return inputLayout;

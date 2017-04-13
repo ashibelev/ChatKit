@@ -52,6 +52,11 @@ public class CustomMediaMessagesActivity extends DemoMessagesActivity
     }
 
     @Override
+    public void onTextChanged(CharSequence text) {
+
+    }
+
+    @Override
     public void onAddAttachments() {
         new AlertDialog.Builder(this)
                 .setItems(R.array.view_types_dialog, this)
