@@ -14,7 +14,7 @@ public class Message implements IMessage,
 
     private String id;
     private String text;
-    private String type;
+    private byte type;
     private Date createdAt;
     private User user;
     private Image image;
@@ -57,11 +57,11 @@ public class Message implements IMessage,
     }
 
     @Override
-    public String getType() {
+    public byte getType() {
         return type;
     };
 
-    public void setType(String type) {
+    public void setType(byte type) {
         this.type = type;
     };
 

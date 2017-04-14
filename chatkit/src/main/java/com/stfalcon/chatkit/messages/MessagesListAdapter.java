@@ -132,6 +132,24 @@ public class MessagesListAdapter<MESSAGE extends IMessage>
 	 * @param scroll  {@code true} if need to scroll list to bottom when message added.
 	 */
 	public void addToStart(MESSAGE message, boolean scroll) {
+		// Typing again
+		if (message.getType() == IMessage.TYPE_TYPING && isTypingExists()) {
+			return;
+		}
+
+		// Message with typing exists
+		if (isTypingExists()) {
+		// If message from sender
+			if (message.getUser().getId().contentEquals(senderId)) {
+				Wrapper<MESSAGE> element = new Wrapper<>(message);
+				items.add(1, element);
+				notifyItemRangeInserted(1, 1);
+			} else { // Just update typing message
+				update("typing", message);
+			}
+			return;
+		}
+
 		boolean isNewMessageToday = !isPreviousSameDate(0, message.getCreatedAt());
 		if (isNewMessageToday) {
 			items.add(0, new Wrapper<>(message.getCreatedAt()));
@@ -256,6 +274,38 @@ public class MessagesListAdapter<MESSAGE extends IMessage>
 	 */
 	public void clear() {
 		items.clear();
+	}
+
+	private boolean isTypingExists() {
+		if (items.size() == 0) {
+			return false;
+		}
+
+		Wrapper lastItem = items.get(0);
+		if (lastItem.item instanceof IMessage) {
+			IMessage message = (IMessage) lastItem.item;
+			return message.getType() == IMessage.TYPE_TYPING;
+		}
+
+		return false;
+	}
+
+	public void removeTyping() {
+		if (!isTypingExists()) {
+			return;
+		}
+
+		// If date item before typing
+		int removedCount = 0;
+		if (!(items.get(1).item instanceof IMessage)) {
+			items.remove(1);
+			removedCount++;
+		}
+
+		// remove typing item
+		items.remove(0);
+		removedCount++;
+		notifyItemRangeRemoved(0, removedCount);
 	}
 
 	/**

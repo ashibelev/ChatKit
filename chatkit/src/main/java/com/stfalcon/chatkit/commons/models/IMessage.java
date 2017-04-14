@@ -27,13 +27,10 @@ import java.util.Date;
  */
 public interface IMessage {
 
-	String TYPE_TEXT   = "text";
-	String TYPE_TYPING = "typing";
-
-	@StringDef({TYPE_TEXT, TYPE_TYPING})
-	@Retention(RetentionPolicy.SOURCE)
-	@interface Type {
-	}
+	byte TYPE_TEXT   = 0;
+	byte TYPE_TYPING = 1;
+	byte TYPE_SYSTEM = 2;
+	byte TYPE_QUESTION = 3;
 
 	/**
 	 * Returns message identifier
@@ -47,8 +44,7 @@ public interface IMessage {
 	 *
 	 * @return the message type
 	 */
-	@Type
-	String getType();
+	byte getType();
 
 	/**
 	 * Returns message text
