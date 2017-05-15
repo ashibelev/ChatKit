@@ -36,7 +36,9 @@ import com.stfalcon.chatkit.commons.models.IMessage;
 import com.stfalcon.chatkit.utils.DateFormatter;
 
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 
@@ -48,21 +50,21 @@ public class MessagesListAdapter<MESSAGE extends IMessage>
 		implements RecyclerScrollMoreListener.OnLoadMoreListener {
 
 	private MessageHolders holders;
-	private String senderId;
-	private List<Wrapper> items;
+	private String         senderId;
+	private List<Wrapper>  items;
 
-	private int selectedItemsCount;
+	private int               selectedItemsCount;
 	private SelectionListener selectionListener;
 
 	static boolean isSelectionModeEnabled;
 
-	private OnLoadMoreListener loadMoreListener;
-	private OnMessageClickListener<MESSAGE> onMessageClickListener;
+	private OnLoadMoreListener                  loadMoreListener;
+	private OnMessageClickListener<MESSAGE>     onMessageClickListener;
 	private OnMessageLongClickListener<MESSAGE> onMessageLongClickListener;
-	private ImageLoader imageLoader;
-	private RecyclerView.LayoutManager layoutManager;
-	private MessagesListStyle messagesListStyle;
-	private DateFormatter.Formatter dateHeadersFormatter;
+	private ImageLoader                         imageLoader;
+	private RecyclerView.LayoutManager          layoutManager;
+	private MessagesListStyle                   messagesListStyle;
+	private DateFormatter.Formatter             dateHeadersFormatter;
 
 	/**
 	 * For default list item layout and view holder.
@@ -77,9 +79,9 @@ public class MessagesListAdapter<MESSAGE extends IMessage>
 	/**
 	 * For default list item layout and view holder.
 	 *
-	 * @param senderId            identifier of sender.
-	 * @param holders custom layouts and view holders. See {@link MessageHolders} documentation for details
-	 * @param imageLoader         image loading method.
+	 * @param senderId    identifier of sender.
+	 * @param holders     custom layouts and view holders. See {@link MessageHolders} documentation for details
+	 * @param imageLoader image loading method.
 	 */
 	public MessagesListAdapter(String senderId, MessageHolders holders,
 							   ImageLoader imageLoader) {
@@ -121,8 +123,27 @@ public class MessagesListAdapter<MESSAGE extends IMessage>
 		}
 	}
 
+	private void sortMessages() {
+		Collections.sort(items, new Comparator<Wrapper>() {
+			@Override
+			public int compare(Wrapper left, Wrapper right) {
+				return getDate(right).compareTo(getDate(left));
+			}
+		});
+	}
+
+	private Date getDate(Wrapper value) {
+		if (value.item instanceof Date) {
+			return (Date) value.item;
+		} else if (value.item instanceof IMessage) {
+			return ((IMessage) value.item).getCreatedAt();
+		} else {
+			return Calendar.getInstance().getTime();
+		}
+	}
+
     /*
-    * PUBLIC METHODS
+	* PUBLIC METHODS
     * */
 
 	/**
@@ -139,7 +160,7 @@ public class MessagesListAdapter<MESSAGE extends IMessage>
 
 		// Message with typing exists
 		if (isTypingExists()) {
-		// If message from sender
+			// If message from sender
 			if (message.getUser().getId().contentEquals(senderId)) {
 				Wrapper<MESSAGE> element = new Wrapper<>(message);
 				items.add(1, element);
@@ -156,6 +177,7 @@ public class MessagesListAdapter<MESSAGE extends IMessage>
 		}
 		Wrapper<MESSAGE> element = new Wrapper<>(message);
 		items.add(0, element);
+		sortMessages();
 		notifyItemRangeInserted(0, isNewMessageToday ? 2 : 1);
 		if (layoutManager != null && scroll) {
 			layoutManager.scrollToPosition(0);
@@ -315,7 +337,8 @@ public class MessagesListAdapter<MESSAGE extends IMessage>
 	 */
 	public void enableSelectionMode(SelectionListener selectionListener) {
 		if (selectionListener == null) {
-			throw new IllegalArgumentException("SelectionListener must not be null. Use `disableSelectionMode()` if you want tp disable selection mode");
+			throw new IllegalArgumentException(
+					"SelectionListener must not be null. Use `disableSelectionMode()` if you want tp disable selection mode");
 		} else {
 			this.selectionListener = selectionListener;
 		}
@@ -607,7 +630,7 @@ public class MessagesListAdapter<MESSAGE extends IMessage>
 	* WRAPPER
 	* */
 	private class Wrapper<DATA> {
-		DATA item;
+		DATA    item;
 		boolean isSelected;
 
 		Wrapper(DATA item) {
@@ -616,7 +639,7 @@ public class MessagesListAdapter<MESSAGE extends IMessage>
 	}
 
     /*
-    * LISTENERS
+	* LISTENERS
     * */
 
 	/**
@@ -835,8 +858,8 @@ public class MessagesListAdapter<MESSAGE extends IMessage>
 	public static class DefaultDateHeaderViewHolder extends ViewHolder<Date>
 			implements MessageHolders.DefaultMessageViewHolder {
 
-		protected TextView text;
-		protected String dateFormat;
+		protected TextView                text;
+		protected String                  dateFormat;
 		protected DateFormatter.Formatter dateHeadersFormatter;
 
 		public DefaultDateHeaderViewHolder(View itemView) {
