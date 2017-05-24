@@ -37,6 +37,7 @@ import com.stfalcon.chatkit.utils.DateFormatter;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 
@@ -151,14 +152,59 @@ public class MessagesListAdapter<MESSAGE extends IMessage>
 		}
 
 		boolean isNewMessageToday = !isPreviousSameDate(0, message.getCreatedAt());
+		List<Wrapper> addedMessages = new ArrayList<>();
 		if (isNewMessageToday) {
 			items.add(0, new Wrapper<>(message.getCreatedAt()));
+			addedMessages.add(items.get(0));
 		}
 		Wrapper<MESSAGE> element = new Wrapper<>(message);
 		items.add(0, element);
-		notifyItemRangeInserted(0, isNewMessageToday ? 2 : 1);
+		addedMessages.add(element);
+		sortAndNotify(message, isNewMessageToday);
 		if (layoutManager != null && scroll) {
 			layoutManager.scrollToPosition(0);
+		}
+	}
+
+	private void sortAndNotify(IMessage message, boolean isNewMessageToday) {
+		Collections.sort(items, new Comparator<Wrapper>() {
+			@Override
+			public int compare(Wrapper o1, Wrapper o2) {
+				if (dateFromWrapper(o1).before(dateFromWrapper(o2))) {
+					return 1;
+				} else if (dateFromWrapper(o1).after(dateFromWrapper(o2))) {
+					return -1;
+				}
+				return 0;
+			}
+		});
+		// notify items inserted
+		for (int i = 0; i < items.size(); i++) {
+			Wrapper wrapper = items.get(i);
+			if (wrapper.item.equals(message)) {
+				if (!isNewMessageToday) {
+					// added only one
+					notifyItemInserted(i);
+				} else {
+					// it will be true, but check for more safety
+					if (i + 1 < items.size() && items.get(i + 1).item instanceof Date
+							&& items.get(i + 1).item.equals(message.getCreatedAt())) {
+						// added message with new date item
+						notifyItemRangeInserted(i, i + 2);
+					}
+				}
+				break;
+			}
+		}
+	}
+
+	private Date dateFromWrapper(Wrapper wrapper) {
+		if (wrapper.item instanceof Date) {
+			return (Date) wrapper.item;
+		} else if (wrapper.item instanceof IMessage) {
+			return ((IMessage) wrapper.item).getCreatedAt();
+		} else {
+			throw new IllegalArgumentException("Unsupported item type: " + wrapper.item.getClass());
 		}
 	}
 
@@ -789,6 +835,7 @@ public class MessagesListAdapter<MESSAGE extends IMessage>
 		 *
 		 * @return weather is item selected.
 		 */
+		@Override
 		public boolean isSelected() {
 			return isSelected;
 		}
@@ -798,6 +845,7 @@ public class MessagesListAdapter<MESSAGE extends IMessage>
 		 *
 		 * @return weather is selection mode enabled.
 		 */
+		@Override
 		public boolean isSelectionModeEnabled() {
 			return isSelectionModeEnabled;
 		}
@@ -807,10 +855,12 @@ public class MessagesListAdapter<MESSAGE extends IMessage>
 		 *
 		 * @return image loader interface.
 		 */
+		@Override
 		public ImageLoader getImageLoader() {
 			return imageLoader;
 		}
 
+		@Override
 		protected void configureLinksBehavior(final TextView text) {
 			text.setLinksClickable(false);
 			text.setMovementMethod(new LinkMovementMethod() {
