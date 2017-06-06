@@ -23,10 +23,11 @@ import java.util.Date;
  */
 public interface IMessage {
 
-	byte TYPE_TEXT   = 0;
-	byte TYPE_TYPING = 1;
-	byte TYPE_SYSTEM = 2;
-	byte TYPE_QUESTION = 3;
+	byte TYPE_TEXT         = 0;
+	byte TYPE_TYPING       = 1;
+	byte TYPE_SYSTEM       = 2;
+	byte TYPE_QUESTION     = 3;
+	byte TYPE_POST_COMMENT = 4;
 
 	/**
 	 * Returns message identifier
