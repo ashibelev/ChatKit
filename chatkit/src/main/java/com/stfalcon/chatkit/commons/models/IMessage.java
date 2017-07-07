@@ -28,6 +28,7 @@ public interface IMessage {
 	byte TYPE_SYSTEM       = 2;
 	byte TYPE_QUESTION     = 3;
 	byte TYPE_POST_COMMENT = 4;
+	byte TYPE_GIFT         = 5;
 
 	/**
 	 * Returns message identifier
