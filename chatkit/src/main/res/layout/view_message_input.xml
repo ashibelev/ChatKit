@@ -21,12 +21,15 @@
 			android:id="@id/messageInput"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
+			android:minHeight="40dp"
 			android:layout_centerVertical="true"
 			android:layout_toEndOf="@id/attachmentButtonSpace"
 			android:layout_toLeftOf="@id/sendButtonSpace"
 			android:layout_toRightOf="@id/attachmentButtonSpace"
 			android:layout_toStartOf="@id/sendButtonSpace"
 			android:inputType="textAutoCorrect|textAutoComplete|textMultiLine|textCapSentences"
+			android:paddingTop="8dp"
+			android:paddingBottom="8dp"
 			android:paddingStart="8dp"
 			android:paddingEnd="8dp"/>
 
