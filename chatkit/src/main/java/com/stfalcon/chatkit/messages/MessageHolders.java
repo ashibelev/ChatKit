@@ -1,7 +1,7 @@
 package com.stfalcon.chatkit.messages;
 
-import android.support.annotation.LayoutRes;
-import android.support.annotation.NonNull;
+import androidx.annotation.LayoutRes;
+import androidx.annotation.NonNull;
 import android.text.Spannable;
 import android.text.method.LinkMovementMethod;
 import android.util.TypedValue;

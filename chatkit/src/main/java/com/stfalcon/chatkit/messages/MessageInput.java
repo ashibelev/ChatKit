@@ -18,7 +18,6 @@ package com.stfalcon.chatkit.messages;
 
 import android.content.Context;
 import android.graphics.drawable.Drawable;
-import android.support.v4.widget.Space;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.AttributeSet;
@@ -27,11 +26,13 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.RelativeLayout;
+import android.widget.Space;
 import android.widget.TextView;
 
 import com.stfalcon.chatkit.R;
 
 import java.lang.reflect.Field;
+
 
 /**
  * Component for input outcoming messages
@@ -39,10 +40,10 @@ import java.lang.reflect.Field;
 public class MessageInput extends RelativeLayout
 		implements View.OnClickListener, TextWatcher {
 
-	protected EditText messageInput;
+	protected EditText    messageInput;
 	protected ImageButton messageSendButton;
 	protected ImageButton attachmentButton;
-	protected Space sendButtonSpace, attachmentButtonSpace;
+	protected Space       sendButtonSpace, attachmentButtonSpace;
 
 	private CharSequence input;
 	private InputListener inputListener;
