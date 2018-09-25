@@ -20,13 +20,14 @@ android {
 }
 
 ext {
-    supportVersion = rootProject.ext.supportLibraryVersion;
+    supportVersion = rootProject.ext.supportLibraryVersion
+    androidxVersion = rootProject.ext.androidxVersion
 }
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 
-    implementation 'androidx.appcompat:appcompat:1.0.0-rc02'
-    implementation 'com.google.android.material:material:1.0.0-rc01'
+    implementation "androidx.appcompat:appcompat:$androidxVersion"
+    implementation "com.google.android.material:material:$androidxVersion"
     implementation "com.google.android:flexbox:0.2.5"
 }
